@@ -12,40 +12,59 @@
 
       #offscreen { display:none; }
 
-      #editor {
+      #edit-script {
         position: absolute;
         top: 55%;
         left: 0;
         bottom: 0;
-        right: 14%;
+        right: 0;
         z-index: 1;
+        transition: transform .5s ease;
+        transform: translate(0, 100%);
+      }
+
+      .edit #edit-script {
+        transform: translate(0, 0);        
+      }
+
+      #edit-script button {
+        position: absolute;
+        z-index: 2;
+        border-width: 0;
+        background-color: rgba(0,0,0,.1);
+        height: 8%;
+        border-radius: 4px;
+        font-size: 24px;
+        font-family: Helvetica Neue;
+        font-weight: 200;
+        letter-spacing: 2px;
+        cursor: pointer;
+        color: #333;
+        transition: background-color .25s linear;
+      }
+      #edit-script button:hover {
+        background-color: rgba(255,255,200,.4);
+        font-weight: 200;
       }
 
       #run {
-        position: absolute;
         bottom: 1%;
-        right: 1%;
-        z-index: 2;
-        border: none;
-        background: rgba(0,0,0,.1);
+        right: 1%;        
         width: 12%;
-        height: 5%;
-        border-radius: 4px;
-        font-size: 30px;
-        font-family: Helvetica Neue;
-        font-weight: 100;
-        letter-spacing: 2px;
-        cursor: pointer;
       }
-      #run:hover {
-        background: rgba(255,255,200,.4);
-        font-weight: 200;
-      }
-      #run:focus {
-        outline: none;
+
+      #edit {
+        left: 1%;
+        top: -10%;
+        width: 8%;
       }
 
       #editor {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 14%;
         background: rgba(0,0,0,.08);
         border-radius: 0 3px 0 0;
       }
@@ -53,28 +72,38 @@
         color: #999;
       }
       #editor .ace_scroller {
-        box-shadow: inset 0 0 5px #000;        
+        box-shadow: inset 0 0 5px rgba(0,0,0,.5);
       }
       #editor .ace_indent-guide {
         opacity:0;
       }
-      input {
+      #edit-script input {
         background: rgba(0,0,0,.08);
         border-radius: 3px;
         border: none;
-        box-shadow: inset 0 0 5px #000;
+        box-shadow: inset 0 0 5px rgba(0,0,0,.5);
         box-sizing: border-box;
         padding: 15px 12px;
         position: absolute;
         right: 1%;
         width: 12%;
-        top: 55%;
         margin: 0;
         font-size: 18px;
         font-family: Helvetica Neue;
         font-weight: 200;
         letter-spacing: 1px;
-        color: black;
+        color: #999;
+      }
+      #edit-script input:focus {
+        outline: none;
+      }
+
+      #name {
+        top: 0;
+      }
+
+      #author {
+        top: 60px;
       }
     </style>
     <script src="http://ajax.googleapis.com/ajax/libs/threejs/r67/three.min.js"></script>
@@ -84,9 +113,13 @@
   </head>
   <body>
     <canvas id="offscreen" height="8" width="48"></canvas>
-    <input id="name" placeholder="title"/>
-    <button id="run">start</button>
-    <div id="editor"></div>
+    <div id="edit-script">
+      <button id="edit">edit</button>
+      <input id="name" placeholder="title"/>
+      <input id="author" placeholder="author"/>
+      <button id="run">start</button>
+      <div id="editor"></div>
+    </div>
     <script>
 
   var renderer, camera, ground, scene, editor;
@@ -100,6 +133,7 @@
   init();
   addGeometry();
   requestAnimationFrame(render);
+  startSketch();
 
   function addGeometry() {
     var wallMaterial = new THREE.MeshBasicMaterial(  );
@@ -162,12 +196,12 @@
     var text = new THREE.TextGeometry('Causeway Challenge Proposal', textProperties );
     rotateGeometry(text, Math.PI/2, 0, 0);
     translateGeometry(text, -18, -12, 7)
-    addMesh(new THREE.Mesh(text, textMaterial));
+    scene.add(new THREE.Mesh(text, textMaterial));
 
     text = new THREE.TextGeometry('Public Gaming Wall', textProperties );
     rotateGeometry(text, Math.PI/2, 0, 0);
     translateGeometry(text, -19, -3, 7.5)
-    addMesh(new THREE.Mesh(text, textMaterial));
+    scene.add(new THREE.Mesh(text, textMaterial));
 
     [-20.5, -6, 8.5].forEach(function(xOffset, k){
       for (var i=0; i<16; i++) {
@@ -176,13 +210,13 @@
           buttonColors[j][i + 16*k] = material;
           var buttonRadius = .2;
           ellipseGeometry = new THREE.CylinderGeometry(buttonRadius, buttonRadius, .01,8);
-          translateGeometry(ellipseGeometry, i * .8 + xOffset, +8, j * .8 - 6.5);
+          translateGeometry(ellipseGeometry, i * .8 + xOffset, 8, (7-j) * .8 - 6.5);
           var buttonMesh = new THREE.Mesh(ellipseGeometry, material);
 
           buttonMesh.xIndex = i + 16*k;
           buttonMesh.yIndex = j;
           buttons.push( buttonMesh );
-          addMesh(buttonMesh);
+          scene.add(buttonMesh);
         }
       }
     })
@@ -266,6 +300,44 @@
     document.body.addEventListener( 'mousemove', onMouseMove, false );
     document.body.addEventListener( 'click', onMouseClick, false );
     document.getElementById('run').onclick = startSketch
+    document.getElementById('edit').onclick = toggleEdit;
+  }
+
+  function toggleEdit() {
+    if (document.body.getAttribute('class') == 'edit') {
+      document.getElementById('edit').innerHTML = 'edit';
+      document.body.setAttribute('class','');
+    } else {
+      document.getElementById('edit').innerHTML = 'close';
+      document.body.setAttribute('class','edit');      
+    }
+  }
+
+  function banner(txt, next) {
+    var processing = Processing.getInstanceById('offscreen');
+    if (! processing)
+      processing = new Processing(document.getElementById('offscreen'));
+
+    var font = processing.loadFont('verdana');
+    processing.textFont(font,10);
+
+    // var ctx = document.getElementById('offscreen').getContext('2d');
+    // ctx.font = '10px verdana';
+    var width = processing.textWidth(txt);
+    var x = 52;
+    // ctx.fillStyle = 'rgba(255,255,255,.5)';
+    var interval = setInterval(function() {
+      processing.background(0);
+      processing.fill(255);
+      processing.text(txt, x,8);
+      // ctx.clearRect(0,0,48,8);
+      // ctx.fillText(txt,x,8.0);
+      x -= .5;
+      if (x + width + 8 < 0) {
+        clearInterval(interval);
+        next();
+      }
+    },50);
   }
 
   function startSketch() {
@@ -274,9 +346,16 @@
     localStorage['processing-script'] = script;
     var oldInstance = Processing.getInstanceById('offscreen');
     if (oldInstance) oldInstance.noLoop();
-    new Processing(document.getElementById('offscreen'), script);
-    // var f = new Function('ctx', script );
-    // f(document.getElementById('offscreen').getContext('2d'));
+    if ( document.getElementById('name').value ) {
+      var txt = document.getElementById('name').value.toUpperCase();
+      if (document.getElementById('author').value)
+        txt += ' BY ' + document.getElementById('author').value.toUpperCase()
+      banner(txt, function() {
+        new Processing(document.getElementById('offscreen'), script);
+      });
+    } else {
+      new Processing(document.getElementById('offscreen'), script);
+    }
   }
 
   function onMouseMove( e ) {    
@@ -291,6 +370,9 @@
   }
 
   function onMouseClick( e ) {
+    var processing = Processing.getInstanceById('offscreen');
+    if ( ! processing.mouseClicked ) return;
+
     var windowWidth = document.body.offsetWidth;
     var windowHeight = document.body.offsetHeight;
     var mouseVector = new THREE.Vector3();
@@ -304,8 +386,9 @@
     if (intersects.length > 0) {
       var ctx = document.getElementById('offscreen').getContext('2d');
       intersects.forEach(function(button) {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(button.object.xIndex, button.object.yIndex, 1, 1);
+        processing.mouseX = button.object.xIndex;
+        processing.mouseY = button.object.yIndex;
+        processing.mouseClicked();
       })
     }
 
