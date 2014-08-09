@@ -20,43 +20,56 @@
         right: 0;
         z-index: 1;
         transition: transform .5s ease;
+        display: none;
+      }
+
+      .view #edit-script {
         transform: translate(0, 100%);
+        display: block;
       }
 
       .edit #edit-script {
         transform: translate(0, 0);        
+        display: block;
       }
 
       #edit-script button {
+        outline: 1px solid rgba(0,0,0,.1);
         position: absolute;
         z-index: 2;
         border-width: 0;
         background-color: rgba(0,0,0,.1);
         height: 8%;
-        border-radius: 4px;
-        font-size: 24px;
+        font-size: 20px;
         font-family: Helvetica Neue;
         font-weight: 200;
         letter-spacing: 2px;
         cursor: pointer;
         color: #333;
-        transition: background-color .25s linear;
-      }
-      #edit-script button:hover {
-        background-color: rgba(255,255,200,.4);
-        font-weight: 200;
-      }
-
-      #run {
-        bottom: 1%;
+        transition: background-color .1s linear;
         right: 1%;        
         width: 12%;
       }
+      #edit-script button.disabled {
+        opacity: .5;
+        cursor: initial;
+      }
+      #edit-script button.disabled:hover {
+        background-color: rgba(0,0,0,.1);
+      }
+      #edit-script button:hover {
+        background-color: rgba(255,255,200,.4);
+      }
+
+      #run { bottom: 42%; }
+      #new { bottom: 32%; }
+      #save { bottom: 22%; }
+      #delete { bottom: 12%; }
+      #export { bottom: 2%; }
 
       #edit {
-        left: 1%;
+        right: 1%;
         top: -10%;
-        width: 8%;
       }
 
       #editor {
@@ -93,6 +106,7 @@
         font-weight: 200;
         letter-spacing: 1px;
         color: #999;
+        text-transform: uppercase;
       }
       #edit-script input:focus {
         outline: none;
@@ -105,6 +119,49 @@
       #author {
         top: 60px;
       }
+
+      .edit #scripts {
+        opacity: 0;
+        cursor: initial;
+      }
+
+      #scripts {
+        position: absolute;
+        left: 40%;
+        height: 86px;
+        bottom: 2%;
+        width: 20%;
+        margin: 0;
+        padding: 0;  
+        overflow: hidden;
+        font-family: Helvetica Neue;
+        font-weight: 200;
+        font-size: 16px;
+        line-height: 28px;
+        transition: opacity .25s linear;
+        cursor: pointer;
+      }
+
+      #scripts .inset {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        z-index: 1;
+        background: linear-gradient( 0deg, rgba(100,96,94,1), rgba(100,96,94,1) 10%, rgba(100,96,94,0) 50%, rgba(100,96,94,1) 90%, rgba(100,96,94,1) );
+      }
+
+      #scripts ul, #scripts li {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        text-align: center;
+        color: #000;
+      }
+      #scripts li.active {
+        color: #ccc;
+      }
     </style>
     <script src="http://ajax.googleapis.com/ajax/libs/threejs/r67/three.min.js"></script>
     <script src="http://cdnjs.cloudflare.com/ajax/libs/ace/1.1.3/ace.js"></script>
@@ -113,11 +170,22 @@
   </head>
   <body>
     <canvas id="offscreen" height="8" width="48"></canvas>
+    <div id="scripts"><div class="inset"></div><ul id="script-scroll">
+      <li>WHACK-A-MOLE</li>
+      <li class="active">RED LINE</li>
+      <li>TENNIS</li>
+      <li>FLOCKING</li>
+      <li>SPRINTS</li>
+    </ul></div>
     <div id="edit-script">
       <button id="edit">edit</button>
       <input id="name" placeholder="title"/>
       <input id="author" placeholder="author"/>
       <button id="run">start</button>
+      <button id="save" class="disabled">save</button>
+      <button id="delete" class="disabled">delete</button>
+      <button id="new">new</button>
+      <button id="export">export</button>
       <div id="editor"></div>
     </div>
     <script>
@@ -125,6 +193,7 @@
   var renderer, camera, ground, scene, editor;
   var buttonColors = [[],[],[],[],[],[],[],[],[]];
   var buttons = [];
+  var scripts = {};
 
   var cameraOffset = {x:0, y:-50, z:-2.5};
   var cameraLookAt = {x:0, y:0, z:-5};
@@ -133,94 +202,7 @@
   init();
   addGeometry();
   requestAnimationFrame(render);
-  startSketch();
 
-  function addGeometry() {
-    var wallMaterial = new THREE.MeshBasicMaterial(  );
-    wallMaterial.color.setHSL( 0.095, .025, 0.25 );
-    wallMaterial.wireframe = true;
-    wallMaterial.wireframeLinewidth = .5;
-
-    var backWall = new THREE.BoxGeometry(72 - .9*16, 16, 16);
-    translateGeometry( backWall, .9*8, 16, 0);
-    addMesh(new THREE.Mesh(backWall, wallMaterial ))
-
-    var backWallSeparator = new THREE.BoxGeometry(72 - .9*16, 1.5, 4);
-    translateGeometry( backWallSeparator, .9*8, 8, 2);
-    addMesh(new THREE.Mesh(backWallSeparator, wallMaterial ))
-
-    var backWallTop = new THREE.BoxGeometry(72 - .9*16, 1, 1);
-    rotateGeometry( backWallTop, Math.PI/4, 0, 0 );
-    translateGeometry( backWallTop, .9*8, 8, 8);
-    addMesh(new THREE.Mesh(backWallTop, wallMaterial ))
-
-    var topMass = new THREE.BoxGeometry(72, 32, 16);
-    translateGeometry( topMass, 0, 8, 16);
-    addMesh(new THREE.Mesh(topMass, wallMaterial ))
-
-    var door = new THREE.BoxGeometry(.9*16, 16, 16);
-    translateGeometry( door, -(72-.9*16)/2, 32, 0);
-    addMesh(new THREE.Mesh(door, wallMaterial ))
-
-    var planter = new THREE.BoxGeometry(72 - .9*16, 8, 1);
-    translateGeometry( planter, .9*8, 4, -8);
-    addMesh(new THREE.Mesh(planter, wallMaterial ));
-
-    for (var i=0; i<6; i++) {
-      var column = new THREE.BoxGeometry(.75, .75, 32);
-      rotateGeometry(column, 0, 0, Math.PI/4 );
-      translateGeometry( column, -36 + i*72/5, -8, 8);
-      addMesh(new THREE.Mesh(column, wallMaterial ));
-
-      column = new THREE.BoxGeometry(.75, .75, 32);
-      rotateGeometry(column, 0, 0, Math.PI/4 );
-      translateGeometry( column, -36 + i*72/5, 8, 8);
-      addMesh(new THREE.Mesh(column, wallMaterial ));
-
-      column = new THREE.BoxGeometry(.75, 16, .75);
-      rotateGeometry(column, 0, Math.PI/4, 0 );
-      translateGeometry( column, -36 + i*72/5, 0, 8);
-      addMesh(new THREE.Mesh(column, wallMaterial ));
-    }
-
-    var textProperties = {
-      size: .6,
-      height: .01,
-      curveSegments: 4,
-
-      font: 'droid sans',
-      style: 'normal',
-      weight: 'normal'
-    };
-    var textMaterial = new THREE.MeshBasicMaterial( {color:0xffffff, transparent:true, opacity:.5});
-    var text = new THREE.TextGeometry('Causeway Challenge Proposal', textProperties );
-    rotateGeometry(text, Math.PI/2, 0, 0);
-    translateGeometry(text, -18, -12, 7)
-    scene.add(new THREE.Mesh(text, textMaterial));
-
-    text = new THREE.TextGeometry('Public Gaming Wall', textProperties );
-    rotateGeometry(text, Math.PI/2, 0, 0);
-    translateGeometry(text, -19, -3, 7.5)
-    scene.add(new THREE.Mesh(text, textMaterial));
-
-    [-20.5, -6, 8.5].forEach(function(xOffset, k){
-      for (var i=0; i<16; i++) {
-        for (var j=0; j<8; j++) {
-          var material = new THREE.MeshBasicMaterial( { color:0xffffff });
-          buttonColors[j][i + 16*k] = material;
-          var buttonRadius = .2;
-          ellipseGeometry = new THREE.CylinderGeometry(buttonRadius, buttonRadius, .01,8);
-          translateGeometry(ellipseGeometry, i * .8 + xOffset, 8, (7-j) * .8 - 6.5);
-          var buttonMesh = new THREE.Mesh(ellipseGeometry, material);
-
-          buttonMesh.xIndex = i + 16*k;
-          buttonMesh.yIndex = j;
-          buttons.push( buttonMesh );
-          scene.add(buttonMesh);
-        }
-      }
-    })
-  }
 
   function init() {
     renderer = new THREE.WebGLRenderer( {alpha: true} );
@@ -275,64 +257,132 @@
     renderer.shadowMapSoft = true;
     renderer.shadowMapCullFace = THREE.CullFaceBack;
 
-    editor = ace.edit("editor");
-    editor.setTheme("ace/theme/ambiance");
-    editor.getSession().setMode("ace/mode/java");
-    editor.setShowPrintMargin(false);
-    editor.getSession().setUseSoftTabs(true);
-    editor.setFontSize(16);
-    editor.commands.addCommand({
-        name: 'runScript',
-        bindKey: {win: 'Ctrl-Alt-Enter',  mac: 'Ctrl-Alt-Enter'},
-        exec: startSketch
-    });
-    editor.renderer.setPadding(15);
-    editor.renderer.setScrollMargin(15);
+
     setTimeout(function() {
-      editor.focus();
+      editor = ace.edit("editor");
+      editor.setTheme("ace/theme/ambiance");
+      editor.getSession().setMode("ace/mode/java");
+      editor.setShowPrintMargin(false);
+      editor.getSession().setUseSoftTabs(true);
+      editor.setFontSize(16);
+      editor.commands.addCommand({
+          name: 'runScript',
+          bindKey: {win: 'Ctrl-Alt-Enter',  mac: 'Ctrl-Alt-Enter'},
+          exec: startSketch
+      });
+      editor.renderer.setPadding(15);
+      editor.renderer.setScrollMargin(15);
+      restore();
       editor.clearSelection();
+      if (editor.getValue())
+        startSketch();
+
+      document.body.setAttribute('class','view');
     }, 500);
 
-    if (localStorage['processing-script'])
-      editor.setValue(localStorage['processing-script']);
+    setInterval(autosave, 3000);
 
     window.addEventListener( 'resize', onWindowResize, false );
     document.body.addEventListener( 'mousemove', onMouseMove, false );
     document.body.addEventListener( 'click', onMouseClick, false );
-    document.getElementById('run').onclick = startSketch
-    document.getElementById('edit').onclick = toggleEdit;
+    el('run').onclick = startSketch
+    el('edit').onclick = toggleEdit;
+    el('new').onclick = resetEdit;
+    el('save').onclick = save;
+    el('delete').onclick = deleteScript;
+    el('name').onkeyup = setSaveState;
+    el('author').onkeyup = setSaveState;
+  }
+  
+  function el(elId) {  return document.getElementById(elId);  }
+
+  function setSaveState() {
+    var name = el('name').value;
+    if ( name ) {
+      el('save').setAttribute('class','');        
+      el('delete').setAttribute('class', name in scripts ? '' : 'disabled' );
+    } else {
+      el('delete').setAttribute('class','disabled');
+      el('save').setAttribute('class','disabled');
+    }
+  }
+
+  function resetEdit() {
+    editor.setValue('');
+    el('name').value = '';
+    el('author').value = '';
+    stopSketch();
   }
 
   function toggleEdit() {
     if (document.body.getAttribute('class') == 'edit') {
-      document.getElementById('edit').innerHTML = 'edit';
-      document.body.setAttribute('class','');
+      el('edit').innerHTML = 'edit';
+      document.body.setAttribute('class','view');
     } else {
-      document.getElementById('edit').innerHTML = 'close';
+      el('edit').innerHTML = 'close';
       document.body.setAttribute('class','edit');      
     }
+  }
+
+  function save() {
+    autosave();
+    var name = el('name').value;
+    if (name) {
+      scripts[name] = localStorage.$draft;
+      localStorage.$scripts = JSON.stringify(scripts);
+    }
+    setSaveState();
+  }
+
+  function deleteScript() {
+    var name = el('name').value;
+    if (name && scripts[name]) {
+      delete scripts[name];
+      localStorage.$scripts = JSON.stringify(scripts);
+      resetEdit();
+      autosave();
+      setSaveState();
+    }
+  }
+
+  function autosave() {
+    var name = el('name').value;
+    var author = el('author').value;
+    var script = { name:name, author:author, script:editor.getValue() };
+    localStorage.$draft = JSON.stringify(script);
+  }
+
+  function restore() {
+    var draftJSON = localStorage.$draft;
+    if (draftJSON) {
+      var script = JSON.parse(draftJSON);
+      el('name').value = script.name || '';
+      el('author').value = script.author || '';
+      editor.setValue( script.script );
+    }
+
+    var scriptsJSON = localStorage.$scripts;
+    if (scriptsJSON)
+      scripts = JSON.parse(scriptsJSON);
+    setSaveState();
   }
 
   function banner(txt, next) {
     var processing = Processing.getInstanceById('offscreen');
     if (! processing)
-      processing = new Processing(document.getElementById('offscreen'));
+      processing = new Processing(el('offscreen'));
 
     var font = processing.loadFont('verdana');
     processing.textFont(font,10);
 
-    // var ctx = document.getElementById('offscreen').getContext('2d');
-    // ctx.font = '10px verdana';
     var width = processing.textWidth(txt);
     var x = 52;
-    // ctx.fillStyle = 'rgba(255,255,255,.5)';
+
     var interval = setInterval(function() {
       processing.background(0);
       processing.fill(255);
-      processing.text(txt, x,8);
-      // ctx.clearRect(0,0,48,8);
-      // ctx.fillText(txt,x,8.0);
-      x -= .5;
+      processing.text(txt, x, 8);
+      x -= 1;
       if (x + width + 8 < 0) {
         clearInterval(interval);
         next();
@@ -340,21 +390,26 @@
     },50);
   }
 
+  function stopSketch() {
+    var oldInstance = Processing.getInstanceById('offscreen');
+    if (oldInstance) oldInstance.noLoop();
+    el('offscreen').getContext('2d').clearRect(0,0,48,8);
+  }
+
   function startSketch() {
     var script = editor.getValue();
 
     localStorage['processing-script'] = script;
-    var oldInstance = Processing.getInstanceById('offscreen');
-    if (oldInstance) oldInstance.noLoop();
-    if ( document.getElementById('name').value ) {
-      var txt = document.getElementById('name').value.toUpperCase();
-      if (document.getElementById('author').value)
-        txt += ' BY ' + document.getElementById('author').value.toUpperCase()
+    stopSketch();
+    if ( el('name').value ) {
+      var txt = el('name').value.toUpperCase();
+      if (el('author').value)
+        txt += ' BY ' + el('author').value.toUpperCase()
       banner(txt, function() {
-        new Processing(document.getElementById('offscreen'), script);
+        new Processing(el('offscreen'), script);
       });
     } else {
-      new Processing(document.getElementById('offscreen'), script);
+      new Processing(el('offscreen'), script);
     }
   }
 
@@ -371,7 +426,7 @@
 
   function onMouseClick( e ) {
     var processing = Processing.getInstanceById('offscreen');
-    if ( ! processing.mouseClicked ) return;
+    if ( ! processing || ! processing.mouseClicked ) return;
 
     var windowWidth = document.body.offsetWidth;
     var windowHeight = document.body.offsetHeight;
@@ -384,7 +439,7 @@
 
     var intersects = raycaster.intersectObjects( buttons );
     if (intersects.length > 0) {
-      var ctx = document.getElementById('offscreen').getContext('2d');
+      var ctx = el('offscreen').getContext('2d');
       intersects.forEach(function(button) {
         processing.mouseX = button.object.xIndex;
         processing.mouseY = button.object.yIndex;
@@ -401,9 +456,8 @@
     renderer.setSize( window.innerWidth, window.innerHeight );
   }
 
-
   function render() {
-    var canvasData = document.getElementById('offscreen').getContext('2d').getImageData(0,0,48,8).data;
+    var canvasData = el('offscreen').getContext('2d').getImageData(0,0,48,8).data;
     for (var i=0; i<48; i++) {
       for (var j=0; j<8; j++) {
         var index = (j*48 + i)*4;
