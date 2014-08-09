@@ -200,63 +200,10 @@
   var outline = .08;
 
   init();
-  addGeometry();
-  requestAnimationFrame(render);
-
 
   function init() {
-    renderer = new THREE.WebGLRenderer( {alpha: true} );
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    renderer.shadowMapEnabled = true;
-    document.body.appendChild( renderer.domElement );
-
-    camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 200 );
-    camera.up = new THREE.Vector3( 0, 0, 1 );
-    setCamera( cameraOffset.x, cameraOffset.y, cameraOffset.z, cameraLookAt.x, cameraLookAt.y, cameraLookAt.z );
-
-    scene = new THREE.Scene();
-
-    scene.fog = new THREE.Fog( 0xffffff, 1, 200 );
-    scene.fog.color.setHSL( 0.6, 0, .2 );
-
-    var light = new THREE.DirectionalLight(0x333333);
-    light.position.set(-10,-30,10);
-    light.rotation.x = light.rotation.y = light.rotation.z = 0;
-    light.target.position.set(0.0,0.0,10.0);
-    light.target.updateMatrixWorld();
-    light.castShadow = true;
-    light.shadowMapWidth = 4096;
-    light.shadowMapHeight = 4096;
-
-    var d = 200;
-    light.shadowCameraLeft = -d;
-    light.shadowCameraRight = d;
-    light.shadowCameraTop = d;
-    light.shadowCameraBottom = -d;
-
-    scene.add(light);
-
-    var hemiLight = new THREE.HemisphereLight( 0x999999, 0x999999, 0.6 );
-    hemiLight.color.setHSL( 0.095, .25, 0.8 );
-    hemiLight.groundColor.setHSL( 0.095, .05, 0.8 );
-    hemiLight.position.set( 0, 500, 0 );
-    scene.add( hemiLight );
-
-
-    // GROUND
-    var groundGeo = new THREE.PlaneGeometry( 10000, 10000 );
-    var groundMat = new THREE.MeshPhongMaterial( { ambient: 0x999999, color: 0x999999, specular: 0x999999 } );
-    groundMat.color.setHSL( 0.095, .0, 0.8 );
-
-    ground = new THREE.Mesh( groundGeo, groundMat );
-    scene.add( ground );
-
-    ground.receiveShadow = true;
-
-    renderer.shadowMapEnabled = true;
-    renderer.shadowMapSoft = true;
-    renderer.shadowMapCullFace = THREE.CullFaceBack;
-
+    initScene();
+    requestAnimationFrame(render);
 
     setTimeout(function() {
       editor = ace.edit("editor");
@@ -467,6 +414,149 @@
 
     renderer.render( scene, camera );    
     requestAnimationFrame(render);
+  }
+
+  function initScene() {
+    renderer = new THREE.WebGLRenderer( {alpha: true} );
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.shadowMapEnabled = true;
+    document.body.appendChild( renderer.domElement );
+
+    camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 200 );
+    camera.up = new THREE.Vector3( 0, 0, 1 );
+    setCamera( cameraOffset.x, cameraOffset.y, cameraOffset.z, cameraLookAt.x, cameraLookAt.y, cameraLookAt.z );
+
+    scene = new THREE.Scene();
+
+    scene.fog = new THREE.Fog( 0xffffff, 1, 200 );
+    scene.fog.color.setHSL( 0.6, 0, .2 );
+
+    var light = new THREE.DirectionalLight(0x333333);
+    light.position.set(-10,-30,10);
+    light.rotation.x = light.rotation.y = light.rotation.z = 0;
+    light.target.position.set(0.0,0.0,10.0);
+    light.target.updateMatrixWorld();
+    light.castShadow = true;
+    light.shadowMapWidth = 4096;
+    light.shadowMapHeight = 4096;
+
+    var d = 200;
+    light.shadowCameraLeft = -d;
+    light.shadowCameraRight = d;
+    light.shadowCameraTop = d;
+    light.shadowCameraBottom = -d;
+
+    scene.add(light);
+
+    var hemiLight = new THREE.HemisphereLight( 0x999999, 0x999999, 0.6 );
+    hemiLight.color.setHSL( 0.095, .25, 0.8 );
+    hemiLight.groundColor.setHSL( 0.095, .05, 0.8 );
+    hemiLight.position.set( 0, 500, 0 );
+    scene.add( hemiLight );
+
+
+    // GROUND
+    var groundGeo = new THREE.PlaneGeometry( 10000, 10000 );
+    var groundMat = new THREE.MeshPhongMaterial( { ambient: 0x999999, color: 0x999999, specular: 0x999999 } );
+    groundMat.color.setHSL( 0.095, .0, 0.8 );
+
+    ground = new THREE.Mesh( groundGeo, groundMat );
+    scene.add( ground );
+
+    ground.receiveShadow = true;
+
+    renderer.shadowMapEnabled = true;
+    renderer.shadowMapSoft = true;
+    renderer.shadowMapCullFace = THREE.CullFaceBack;
+
+    addGeometry();
+  }
+
+  function addGeometry() {
+    var wallMaterial = new THREE.MeshBasicMaterial(  );
+    wallMaterial.color.setHSL( 0.095, .025, 0.25 );
+    wallMaterial.wireframe = true;
+    wallMaterial.wireframeLinewidth = .5;
+
+    var backWall = new THREE.BoxGeometry(72 - .9*16, 16, 16);
+    translateGeometry( backWall, .9*8, 16, 0);
+    addMesh(new THREE.Mesh(backWall, wallMaterial ))
+
+    var backWallSeparator = new THREE.BoxGeometry(72 - .9*16, 1.5, 4);
+    translateGeometry( backWallSeparator, .9*8, 8, 2);
+    addMesh(new THREE.Mesh(backWallSeparator, wallMaterial ))
+
+    var backWallTop = new THREE.BoxGeometry(72 - .9*16, 1, 1);
+    rotateGeometry( backWallTop, Math.PI/4, 0, 0 );
+    translateGeometry( backWallTop, .9*8, 8, 8);
+    addMesh(new THREE.Mesh(backWallTop, wallMaterial ))
+
+    var topMass = new THREE.BoxGeometry(72, 32, 16);
+    translateGeometry( topMass, 0, 8, 16);
+    addMesh(new THREE.Mesh(topMass, wallMaterial ))
+
+    var door = new THREE.BoxGeometry(.9*16, 16, 16);
+    translateGeometry( door, -(72-.9*16)/2, 32, 0);
+    addMesh(new THREE.Mesh(door, wallMaterial ))
+
+    var planter = new THREE.BoxGeometry(72 - .9*16, 8, 1);
+    translateGeometry( planter, .9*8, 4, -8);
+    addMesh(new THREE.Mesh(planter, wallMaterial ));
+
+    for (var i=0; i<6; i++) {
+      var column = new THREE.BoxGeometry(.75, .75, 32);
+      rotateGeometry(column, 0, 0, Math.PI/4 );
+      translateGeometry( column, -36 + i*72/5, -8, 8);
+      addMesh(new THREE.Mesh(column, wallMaterial ));
+
+      column = new THREE.BoxGeometry(.75, .75, 32);
+      rotateGeometry(column, 0, 0, Math.PI/4 );
+      translateGeometry( column, -36 + i*72/5, 8, 8);
+      addMesh(new THREE.Mesh(column, wallMaterial ));
+
+      column = new THREE.BoxGeometry(.75, 16, .75);
+      rotateGeometry(column, 0, Math.PI/4, 0 );
+      translateGeometry( column, -36 + i*72/5, 0, 8);
+      addMesh(new THREE.Mesh(column, wallMaterial ));
+    }
+
+    var textProperties = {
+      size: .6,
+      height: .01,
+      curveSegments: 4,
+
+      font: 'droid sans',
+      style: 'normal',
+      weight: 'normal'
+    };
+    var textMaterial = new THREE.MeshBasicMaterial( {color:0xffffff, transparent:true, opacity:.5});
+    var text = new THREE.TextGeometry('Causeway Challenge Proposal', textProperties );
+    rotateGeometry(text, Math.PI/2, 0, 0);
+    translateGeometry(text, -18, -12, 7)
+    scene.add(new THREE.Mesh(text, textMaterial));
+
+    text = new THREE.TextGeometry('Video Game Wall', textProperties );
+    rotateGeometry(text, Math.PI/2, 0, 0);
+    translateGeometry(text, -19, -3, 7.5)
+    scene.add(new THREE.Mesh(text, textMaterial));
+
+    [-20.5, -6, 8.5].forEach(function(xOffset, k){
+      for (var i=0; i<16; i++) {
+        for (var j=0; j<8; j++) {
+          var material = new THREE.MeshBasicMaterial( { color:0xffffff });
+          buttonColors[j][i + 16*k] = material;
+          var buttonRadius = .2;
+          ellipseGeometry = new THREE.CylinderGeometry(buttonRadius, buttonRadius, .01,8);
+          translateGeometry(ellipseGeometry, i * .8 + xOffset, 8, (7-j) * .8 - 6.5);
+          var buttonMesh = new THREE.Mesh(ellipseGeometry, material);
+
+          buttonMesh.xIndex = i + 16*k;
+          buttonMesh.yIndex = j;
+          buttons.push( buttonMesh );
+          scene.add(buttonMesh);
+        }
+      }
+    })
   }
 
   function addMesh( mesh, meshName ) {
