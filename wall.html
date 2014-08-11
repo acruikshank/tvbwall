@@ -202,35 +202,10 @@
   var buttonColors = [[],[],[],[],[],[],[],[],[]];
   var buttons = [];
   var scripts = {
-'red line' : {name:'red line', author:'alex', script:'noStroke();\n\
-  background(0);\n\
-\n\
-  void draw() {\n\
-    var red = random(128) + 128;\n\
-    var other = random(red);\n\
-    fill(red, other, other);\n\
-    rect(random(48),0,1,8);\n\
-  }'},
-
-'green line' : {name:'green line', author:'ada', script:'noStroke();\n\
-  background(0);\n\
-\n\
-  void draw() {\n\
-    var green = random(128) + 128;\n\
-    var other = random(red);\n\
-    fill(other, green, other);\n\
-    rect(random(48),0,1,8);\n\
-  }'},
-
-'blue line' : {name:'blue line', author:'oona', script:'noStroke();\n\
-  background(0);\n\
-\n\
-  void draw() {\n\
-    var blue = random(128) + 128;\n\
-    var other = random(blue);\n\
-    fill(other, other, blue);\n\
-    rect(random(48),0,1,8);\n\
-  }'}
+    'red line' : {name:'red line', author:'alex', script:redline.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'whack-a-mole' : {name:'whack-a-mole', author:'cruikshank', script:whack.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'tenis' : {name:'tenis', author:'ada', script:tenis.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'sprint' : {name:'sprint', author:'oona', script:sprint.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
   };
   var scriptScrollPosition=0, scriptScrollSpeed=0, scriptScrollFrame;
 
@@ -761,6 +736,326 @@ function rotateGeometry( g, x, y, z ) {
 function scaleGeometry( g, x, y, z ) {
   matrix = new THREE.Matrix4().makeScale(x,y,z);
   g.applyMatrix(matrix);
+}
+
+////////////////////////////////////////////
+// SCRIPTS
+////////////////////////////////////////////
+
+////////////////////////////////////////////
+// RED LINE
+////////////////////////////////////////////
+function redline() {
+  noStroke();
+  background(0);
+
+  var scheme = 0;
+  var schemes = [
+    function(c,o) { fill(c,o,o); },
+    function(c,o) { fill(c,c,o); },
+    function(c,o) { fill(o,c,c); },
+    function(c,o) { fill(o,c,o); },
+    function(c,o) { fill(o,o,c); },
+    function(c,o) { fill(c,o,c); }
+  ];
+
+  draw = function() {
+    if (random(5) > 1) return;
+    var color = random(128) + 128;
+    var other = random(color);
+    schemes[scheme]( color, other );
+    rect(random(48),0,1,8);
+  }
+
+  mouseClicked = function() {
+      scheme = (scheme + 1) % schemes.length;      
+  }
+}
+
+////////////////////////////////////////////
+// WHACK-A-MOLE
+////////////////////////////////////////////
+function whack() {
+  var state = 0, timer = 0, moles = [], timeRemaining, score, font;
+  var state = 0, timer = 0, moles = [], timeRemaining, score, font;
+  var INIT=0, WAITING_FOR_PRESS=1, PLAYING=2, SCORING=3;
+  var SQUASH_TIME = 20;
+  var GAME_TIME = 1500;
+  var SCORE_TIME = 500;
+
+  setup = function() {
+    font = loadFont('verdana');
+    textFont(font,7);
+    noStroke();
+  }
+
+  draw = function() {
+    switch (state) {
+      case INIT:
+        background(0);
+        fill(255);
+        text('press to play', 1.5, 6);
+        state = WAITING_FOR_PRESS;
+        break;
+      case PLAYING:
+        background(0);
+        fill(0,0,255);
+        eachSpace(function(i,j,mole) {
+          if (mole && mole.t == 'squashed') {
+            if (mole.x > 0) {
+              fill(255*mole.x/SQUASH_TIME,0,0);
+              var radius = 10 * (SQUASH_TIME-mole.x)/SQUASH_TIME;
+              ellipse(i,j+2,radius,radius);
+              mole.x--;
+            } else {
+              moles[i][j] = null;
+              addMole();
+            }
+          }
+        });
+        eachSpace(function(i,j,mole) {
+          if (mole && mole.t == 'live') {
+            if (mole.v > 1) { fill(255,255,0); } else { fill(0,0,255); }
+            rect(i,j+2,1,1);
+          }
+        });
+
+        fill(255,80,80);            
+        rect(0,0,48,1);
+        fill(80,255,80);
+        rect(0,0,48*timeRemaining/GAME_TIME,1);
+        timeRemaining--;
+        if (timeRemaining <= 0) {
+          state = SCORING;
+          timeRemaining = SCORE_TIME;
+        }
+        break;
+      case SCORING:
+        background(0);
+        fill(255);
+        textFont(font,10);
+        text('score:'+score, 1.5, 8);
+        timeRemaining--;
+        if (timeRemaining < 0)
+          state = INIT;
+    } 
+  }
+
+  mouseClicked = function() {
+    switch (state) {
+      case WAITING_FOR_PRESS:
+        initGame();
+        timeRemaining = GAME_TIME;
+        score = 0;
+        state = PLAYING;
+        break;
+      case PLAYING:
+        var mole = moles[mouseX][mouseY-2];
+        if (mole) {
+          mole.t = 'squashed';
+          mole.x = SQUASH_TIME;
+          score += mole.v;
+        }
+        break;
+    } 
+  }
+
+  function eachSpace(f) {
+    for (var i=0; i<48; i++) for (var j=0; j<6; j++) f(i,j,moles[i][j]);
+  }
+
+  function randomPoint() {
+    return [int(random(48)),int(random(6))];
+  }
+
+  function addMole() {
+    for (var point=randomPoint(); moles[point[0]][point[1]]; point=randomPoint());
+    moles[point[0]][point[1]] = {t:'live', v:int(random(15)) > 0 ? 1 : 5};
+  }
+
+  function initGame() {
+    moles = [];
+    for (var i=0; i<48; i++) {
+      moles[i] = [];
+      for (var j=0; j<6; j++) moles[i][j] = null;
+    }
+
+    for (var i=0; i<35; i++)
+      addMole();
+  }
+}
+
+////////////////////////////////////////////
+// TENIS
+////////////////////////////////////////////
+function tenis() {
+  var SERVE_STATE=0, PLAYING_STATE=1, SCORING_STATE=2;
+  var GRAVITY = .0005, MAX_SCORE=5, SCORING_TIME=500;
+  var state=SERVE_STATE, serveLeft=true, hitLeft=true; leftScore=0, rightScore=0;
+  var arrowPhase = 0, position = {x:3.5,y:5.5}, velocity = {x:0,y:0};
+  var timeRemaining=0;
+
+  draw = function() {
+    background(0);
+    fill(100,100,255);
+    noStroke();
+    rect(0,0,leftScore,1);
+    rect(48-rightScore,0,rightScore,1);
+
+    switch (state) {
+      case SERVE_STATE:
+        noStroke();
+        fill(225,255,0);
+        ellipse(position.x,position.y,2,2);
+        
+        stroke(0,200,100);
+        var offset = (serveLeft?-1:1) * (arrowPhase%40)/5 - (serveLeft?0:16);
+        for (var i=0; i<40; i+=4) {
+          line(14 + i + offset,5.25, (serveLeft?16:12) + i + offset, 7.25);
+          line(14 + i + offset,6.25, (serveLeft?16:12) + i + offset, 4.25);
+        }
+        
+        arrowPhase++;
+        break;
+        
+      case PLAYING_STATE:
+        position.x += velocity.x;
+        position.y += velocity.y;
+        velocity.y += GRAVITY;
+        noStroke();
+        fill(225,255,0);
+        ellipse(position.x,position.y,2,2);
+        if (position.y>8) {
+          if (hitLeft)
+            rightScore++;
+          else
+            leftScore++;
+          
+          if (rightScore >= MAX_SCORE || leftScore >= MAX_SCORE) {
+            state = SCORING_STATE;
+            timeRemaining = SCORING_TIME;
+          } else {
+            state=SERVE_STATE;
+            hitLeft = serveLeft = !serveLeft;
+            position = serveLeft ? {x:3.5,y:5.5} : {x:44.5,y:5.5};
+          }
+        }
+        
+        break;
+      case SCORING_STATE:
+        fill(255);
+        var font = loadFont('verdana');
+        textFont(font,10);
+        text(leftScore, 1.5, 8);
+        text(rightScore, 46.5 - textWidth(rightScore.toString()),8);
+        timeRemaining--;
+        if (timeRemaining < 0) {
+          state=SERVE_STATE, serveLeft=true, hitLeft=true; leftScore=0, rightScore=0;
+          arrowPhase = 0, position = {x:3.5,y:5.5}, velocity = {x:0,y:0};
+        }
+        
+    }
+  }
+
+  mouseClicked = function() {
+    switch (state) {
+      case SERVE_STATE:
+        if (ballHit(mouseX,mouseY)) {
+          hit();
+          state = PLAYING_STATE;
+        }
+        break;
+      case PLAYING_STATE:
+        if (ballHit(mouseX,mouseY))
+          hit();
+        break;
+    }
+  }
+
+  function ballHit(x,y) {
+    var dx = x - position.x, dy = y - position.y;
+    return Math.sqrt(dx*dx + dy*dy) < 4;
+  }
+
+  function hit() {
+    velocity = {x:random(.1,.2) * (hitLeft?1:-1)}
+    var targetX = hitLeft ? random(42,48) : random(0,6);
+    var time = (targetX - position.x) / velocity.x;
+    velocity.y = (8-position.y) / time - GRAVITY*time / 2;
+    hitLeft = !hitLeft;
+  } 
+}
+
+////////////////////////////////////////////
+// SPRINT
+////////////////////////////////////////////
+function sprint() {
+  var state = 0, timer = 0, timeRemaining, score, font;
+  var INIT=0, WAITING_FOR_PRESS=1, PLAYING=2, SCORING=3;
+  var INITIAL_START_TIME = 1000;
+  var TIME_DECREMENT = 10;
+  var SCORE_TIME = 500;
+  var timePerBlock = INITIAL_START_TIME, blockX;
+
+  setup = function() {
+    font = loadFont('verdana');
+    textFont(font,7);
+    noStroke();
+  }
+
+  draw = function(){
+    switch (state) {
+      case INIT:
+        background(0);
+        fill(255);
+        text('press to play', 1.5, 6);
+        state = WAITING_FOR_PRESS;
+        break;
+      case PLAYING:
+        background(0);
+        fill(255,0,0);
+        rect(blockX,0,1,8);
+        fill(0,100,255);
+        rect(blockX,8*(1-timeRemaining/timePerBlock),1,8);
+        timeRemaining--;
+        if (timeRemaining <= 0) {
+          state = SCORING;
+          timeRemaining = SCORE_TIME;
+        }
+        break;
+      case SCORING:
+        background(0);
+        fill(255);
+        textFont(font,10);
+        text('score:'+score, 1.5, 8);
+        timeRemaining--;
+        if (timeRemaining < 0)
+          state = INIT;
+    } 
+  }
+
+  mouseClicked = function() {
+    switch (state) {
+      case WAITING_FOR_PRESS:
+        timePerBlock = INITIAL_START_TIME;
+        score = 0;
+        startBlock();
+        state = PLAYING;
+        break;
+      case PLAYING:
+        if (mouseX == blockX) {
+          score++;
+          startBlock();
+        }
+        break;
+    } 
+  }
+
+  function startBlock() {
+    blockX = int(random(48));
+    timeRemaining = timePerBlock;
+    timePerBlock = max(10,timePerBlock - TIME_DECREMENT);
+  } 
 }
 
     </script>
