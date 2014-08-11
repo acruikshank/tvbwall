@@ -12,40 +12,72 @@
 
       #offscreen { display:none; }
 
-      #editor {
+      #edit-script {
         position: absolute;
         top: 55%;
         left: 0;
         bottom: 0;
-        right: 14%;
+        right: 0;
         z-index: 1;
+        transition: transform .5s ease;
+        display: none;
       }
 
-      #run {
+      .view #edit-script {
+        transform: translate(0, 100%);
+        display: block;
+      }
+
+      .edit #edit-script {
+        transform: translate(0, 0);        
+        display: block;
+      }
+
+      #edit-script button {
+        outline: 1px solid rgba(0,0,0,.1);
         position: absolute;
-        bottom: 1%;
-        right: 1%;
         z-index: 2;
-        border: none;
-        background: rgba(0,0,0,.1);
-        width: 12%;
-        height: 5%;
-        border-radius: 4px;
-        font-size: 30px;
+        border-width: 0;
+        background-color: rgba(0,0,0,.1);
+        height: 8%;
+        font-size: 20px;
         font-family: Helvetica Neue;
-        font-weight: 100;
+        font-weight: 200;
         letter-spacing: 2px;
         cursor: pointer;
+        color: #333;
+        transition: background-color .1s linear;
+        right: 1%;        
+        width: 12%;
       }
-      #run:hover {
-        background: rgba(255,255,200,.4);
-        font-weight: 200;
+      #edit-script button.disabled {
+        opacity: .5;
+        cursor: initial;
       }
-      #run:focus {
-        outline: none;
+      #edit-script button.disabled:hover {
+        background-color: rgba(0,0,0,.1);
+      }
+      #edit-script button:hover {
+        background-color: rgba(255,255,200,.4);
+      }
+
+      #run { bottom: 42%; }
+      #new { bottom: 32%; }
+      #save { bottom: 22%; }
+      #delete { bottom: 12%; }
+      #export { bottom: 2%; }
+
+      #edit {
+        right: 1%;
+        top: -10%;
       }
 
       #editor {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 14%;
         background: rgba(0,0,0,.08);
         border-radius: 0 3px 0 0;
       }
@@ -53,28 +85,95 @@
         color: #999;
       }
       #editor .ace_scroller {
-        box-shadow: inset 0 0 5px #000;        
+        box-shadow: inset 0 0 5px rgba(0,0,0,.5);
       }
       #editor .ace_indent-guide {
         opacity:0;
       }
-      input {
+      #edit-script input {
         background: rgba(0,0,0,.08);
         border-radius: 3px;
         border: none;
-        box-shadow: inset 0 0 5px #000;
+        box-shadow: inset 0 0 5px rgba(0,0,0,.5);
         box-sizing: border-box;
         padding: 15px 12px;
         position: absolute;
         right: 1%;
         width: 12%;
-        top: 55%;
         margin: 0;
         font-size: 18px;
         font-family: Helvetica Neue;
         font-weight: 200;
         letter-spacing: 1px;
-        color: black;
+        color: #999;
+        text-transform: uppercase;
+      }
+      #edit-script input:focus {
+        outline: none;
+      }
+
+      #name {
+        top: 0;
+      }
+
+      #author {
+        top: 60px;
+      }
+
+      .edit #scripts {
+        opacity: 0;
+        cursor: initial;
+      }
+
+      #scripts {
+        position: absolute;
+        left: 40%;
+        height: 86px;
+        bottom: 2%;
+        width: 20%;
+        margin: 0;
+        padding: 0;  
+        overflow: hidden;
+        font-family: Helvetica Neue;
+        font-weight: 200;
+        font-size: 16px;
+        line-height: 28px;
+        transition: opacity .25s linear;
+        cursor: pointer;
+      }
+
+      #scripts .inset {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        pointer-events: none;
+        background: linear-gradient( 0deg, rgba(100,96,94,1), rgba(100,96,94,1) 10%, rgba(100,96,94,0) 50%, rgba(100,96,94,1) 90%, rgba(100,96,94,1) );
+      }
+      #script-scroll {
+        position: relative;
+        top: 28px;
+      }
+      #script-scroll.auto {
+        transition: transform .3s ease;
+        transform: translate(0,0);
+      }
+
+      #scripts ul, #scripts li {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        text-align: center;
+        color: #999;
+        transition: color .5s linear;
+        text-transform: uppercase;
+      }
+      #scripts li.active {
+        color: #fff;
+      }
+      #scripts li:hover {
+        color: #fff;
       }
     </style>
     <script src="http://ajax.googleapis.com/ajax/libs/threejs/r67/three.min.js"></script>
@@ -82,24 +181,419 @@
     <script src="http://cdnjs.cloudflare.com/ajax/libs/processing.js/1.4.8/processing.min.js"></script>
     <script src="droid_sans_regular.typeface.js"></script>
   </head>
-  <body>
+  <body class="view">
     <canvas id="offscreen" height="8" width="48"></canvas>
-    <input id="name" placeholder="title"/>
-    <button id="run">start</button>
-    <div id="editor"></div>
+    <div id="scripts"><ul id="script-scroll" class="auto">
+    </ul><div class="inset"></div></div>
+    <div id="edit-script">
+      <button id="edit">edit</button>
+      <input id="name" placeholder="title"/>
+      <input id="author" placeholder="author"/>
+      <button id="run">start</button>
+      <button id="save" class="disabled">save</button>
+      <button id="delete" class="disabled">delete</button>
+      <button id="new">new</button>
+      <button id="export">export</button>
+      <div id="editor"></div>
+    </div>
     <script>
 
   var renderer, camera, ground, scene, editor;
   var buttonColors = [[],[],[],[],[],[],[],[],[]];
   var buttons = [];
+  var scripts = {
+    'red line' : {name:'red line', author:'alex', script:redline.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'whack-a-mole' : {name:'whack-a-mole', author:'cruikshank', script:whack.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'tenis' : {name:'tenis', author:'ada', script:tenis.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'sprint' : {name:'sprint', author:'oona', script:sprint.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+  };
+  var scriptScrollPosition=0, scriptScrollSpeed=0, scriptScrollFrame;
 
   var cameraOffset = {x:0, y:-50, z:-2.5};
   var cameraLookAt = {x:0, y:0, z:-5};
   var outline = .08;
+  var bannerInterval;
 
   init();
-  addGeometry();
-  requestAnimationFrame(render);
+
+  function el(elId) {  return document.getElementById(elId);  }
+
+  function init() {
+    initScene();
+    requestAnimationFrame(render);
+
+    setTimeout(initEditor, 500)
+    setInterval(autosave, 3000);
+
+    window.addEventListener( 'resize', onWindowResize, false );
+    document.body.addEventListener( 'mousemove', onMouseMove, false );
+    document.body.addEventListener( 'click', onMouseClick, false );
+    el('run').onclick = startSketch
+    el('edit').onclick = toggleEdit;
+    el('new').onclick = resetEdit;
+    el('save').onclick = save;
+    el('delete').onclick = deleteScript;
+    el('export').onclick = exportScript;
+    el('name').onkeyup = setSaveState;
+    el('author').onkeyup = setSaveState;
+    el('scripts').onmouseenter = startScriptScroller;
+    el('scripts').onmouseleave = stopScriptScroller;
+
+    setTimeout(function() {
+      for (var scriptName in scripts) {
+        var element = document.createElement('li');
+        element.innerHTML = scriptName;
+        element.onclick = scriptSelected
+        el('script-scroll').appendChild(element);
+      }
+      el('script-scroll').querySelector('li').setAttribute('class','active');
+      el('script-scroll').style.top = '28px';
+
+      startScript(scripts[el('script-scroll').querySelector('li').innerHTML])
+    }, 750);
+  }
+
+  function startScriptScroller(e) {
+    function setScrollSpeed(e) {
+      var normalized = -2 * (e.clientY - el('scripts').offsetTop - el('scripts').offsetHeight/2) / el('scripts').offsetHeight
+      scriptsScrollSpeed = 2*normalized;
+
+    }
+    el('script-scroll').setAttribute('class','');
+    el('scripts').onmousemove = setScrollSpeed;
+    setScrollSpeed(e);
+    scriptScrollPosition = 0;
+    scriptScrollFrame = requestAnimationFrame(scrollScroller);
+  }
+
+  function scrollScroller() {
+    scriptScrollPosition += scriptsScrollSpeed;
+
+    if ( scriptScrollPosition > -parseInt(el('script-scroll').style.top) + 28 ) {
+      scriptScrollPosition = -parseInt(el('script-scroll').style.top) + 28;
+      scriptsScrollSpeed = 0;
+    }
+
+    if ( scriptScrollPosition < -parseInt(el('script-scroll').style.top) - el('script-scroll').offsetHeight + 56 ) {
+      scriptScrollPosition = -parseInt(el('script-scroll').style.top) - el('script-scroll').offsetHeight + 56;
+      scriptsScrollSpeed = 0;
+    }    
+
+    el('script-scroll').style.transform = 'translate(0, '+scriptScrollPosition+'px)';
+    scriptScrollFrame = requestAnimationFrame(scrollScroller);
+  }
+
+  function scriptSelected(e) {
+    selectScript(e.target.innerHTML);
+  }
+
+  function selectScript(name) {
+    var index = 0;
+    for (var i=0, lis=el('script-scroll').querySelectorAll('li'), l=lis.length; i<l; i++) {
+      if (lis[i].innerHTML === name) {
+        index = i;
+        lis[i].setAttribute('class','active');
+      } else {
+        lis[i].setAttribute('class','');        
+      }
+    }
+    el('script-scroll').style.top = (28 * (1-index)) + 'px';
+    scriptScrollPosition = 0;
+    el('script-scroll').style.transform = 'translate(0, '+scriptScrollPosition+'px)';
+    scriptsScrollSpeed = 0;
+
+    editScript(scripts[name])
+    startScript(scripts[name]);
+  }
+
+  function scriptNames() {
+    var names = [];
+    for (var name in scripts) names.push(name);
+    return names;
+  }
+
+  function stopScriptScroller() {
+    el('scripts').onmousemove = null;
+    el('script-scroll').setAttribute('class','auto');
+    el('script-scroll').style.transform = null;
+    cancelAnimationFrame(scriptScrollFrame);
+  }
+  
+  function setSaveState() {
+    var name = el('name').value;
+    if ( name ) {
+      el('save').setAttribute('class','');        
+      el('delete').setAttribute('class', name in scripts ? '' : 'disabled' );
+    } else {
+      el('delete').setAttribute('class','disabled');
+      el('save').setAttribute('class','disabled');
+    }
+  }
+
+  function resetEdit() {
+    editor.setValue('');
+    el('name').value = '';
+    el('author').value = '';
+    stopSketch();
+  }
+
+  function exportScript() {
+    var name = el('name').value.toUpperCase();
+    var scriptString = JSON.stringify({
+      name: name,
+      author: el('author').value.toUpperCase(),
+      script:editor.getValue()
+    })
+
+    var link = document.createElement('a');
+    link.download = name + '.json';
+    link.href = 'data:,' + scriptString;
+    link.click();
+  }
+
+  function toggleEdit() {
+    if (document.body.getAttribute('class') == 'edit') {
+      el('edit').innerHTML = 'edit';
+      document.body.setAttribute('class','view');
+    } else {
+      el('edit').innerHTML = 'close';
+      document.body.setAttribute('class','edit');      
+    }
+  }
+
+  function save() {
+    autosave();
+    var name = el('name').value;
+    if (name) {
+      scripts[name] = JSON.parse(localStorage.$draft);
+      localStorage.$scripts = JSON.stringify(scripts);
+    }
+    setSaveState();
+  }
+
+  function deleteScript() {
+    var name = el('name').value;
+    if (name && scripts[name]) {
+      delete scripts[name];
+      localStorage.$scripts = JSON.stringify(scripts);
+      resetEdit();
+      autosave();
+      setSaveState();
+    }
+  }
+
+  function autosave() {
+    var name = el('name').value;
+    var author = el('author').value;
+    var script = { name:name, author:author, script:editor.getValue() };
+    localStorage.$draft = JSON.stringify(script);
+  }
+
+  function restore() {
+    var draftJSON = localStorage.$draft;
+    if (draftJSON) {
+      var script = JSON.parse(draftJSON);
+      editScript(script);
+    }
+
+    var scriptsJSON = localStorage.$scripts;
+    if (scriptsJSON) {
+      savedScripts = JSON.parse(scriptsJSON);
+      for (var scriptName in savedScripts)
+        scripts[scriptName] = savedScripts[scriptName];
+    }
+    setSaveState();
+  }
+
+  function editScript(script) {
+    el('name').value = script.name || '';
+    el('author').value = script.author || '';
+    editor.setValue( script.script );
+    editor.clearSelection();
+  }
+
+  function banner(txt, next) {
+    var processing = Processing.getInstanceById('offscreen');
+    if (processing)
+      processing.noLoop();
+    clearInterval(bannerInterval);
+    processing = new Processing(el('offscreen'));
+
+    var font = processing.loadFont('verdana');
+    processing.textFont(font,10);
+
+    var width = processing.textWidth(txt);
+    var x = 52;
+
+    bannerInterval = setInterval(function() {
+      processing.background(0);
+      processing.fill(255);
+      processing.text(txt, x, 8);
+      x -= 1;
+      if (x + width + 8 < 0) {
+        clearInterval(bannerInterval);
+        next();
+      }
+    },50);
+  }
+
+  function stopSketch() {
+    var oldInstance = Processing.getInstanceById('offscreen');
+    if (oldInstance) oldInstance.noLoop();
+    el('offscreen').getContext('2d').clearRect(0,0,48,8);
+  }  
+
+  function startSketch( ) {
+    startScript( { 
+      name:el('name').value, 
+      author:el('author').value,
+      script:editor.getValue()
+    } );
+  }
+
+  function startScript( script ) {
+    stopSketch();
+    if ( script.name ) {
+      var txt = script.name.toUpperCase();
+      if (script.author)
+        txt += ' BY ' + script.author.toUpperCase()
+      banner(txt, function() {
+        new Processing(el('offscreen'), script.script);
+      });
+    } else {
+      new Processing(el('offscreen'), script.script);
+    }
+  }
+
+  function onMouseMove( e ) {    
+    var windowWidth = document.body.offsetWidth;
+    var windowHeight = document.body.offsetHeight;
+    var xAngle = .2 * Math.PI * (e.clientX - windowWidth / 2) / windowWidth;
+
+    var x = -cameraOffset.y * Math.sin(xAngle) + cameraOffset.x;
+    var y = cameraOffset.y * Math.cos(xAngle);
+    var z = 5 * ((e.clientY) / document.body.offsetWidth) + cameraOffset.z;
+    setCamera( x, y, z, cameraLookAt.x, cameraLookAt.y, cameraLookAt.z );
+  }
+
+  function onMouseClick( e ) {
+    var processing = Processing.getInstanceById('offscreen');
+    if ( ! processing || ! processing.mouseClicked ) return;
+
+    var windowWidth = document.body.offsetWidth;
+    var windowHeight = document.body.offsetHeight;
+    var mouseVector = new THREE.Vector3();
+    var projector = new THREE.Projector();
+    mouseVector.x = 2 * (e.clientX / windowWidth) - 1;
+    mouseVector.y = 1 - 2 * (e.clientY / windowHeight);
+
+    var raycaster = projector.pickingRay( mouseVector, camera );
+
+    var intersects = raycaster.intersectObjects( buttons );
+    if (intersects.length > 0) {
+      var ctx = el('offscreen').getContext('2d');
+      intersects.forEach(function(button) {
+        processing.mouseX = button.object.xIndex;
+        processing.mouseY = button.object.yIndex;
+        processing.mouseClicked();
+      })
+    }
+  }
+
+  function initEditor() {
+    editor = ace.edit("editor");
+    editor.setTheme("ace/theme/ambiance");
+    editor.getSession().setMode("ace/mode/java");
+    editor.setShowPrintMargin(false);
+    editor.getSession().setUseSoftTabs(true);
+    editor.setFontSize(16);
+    editor.commands.addCommand({
+        name: 'runScript',
+        bindKey: {win: 'Ctrl-Alt-Enter',  mac: 'Ctrl-Alt-Enter'},
+        exec: startSketch
+    });
+    editor.renderer.setPadding(15);
+    editor.renderer.setScrollMargin(15);
+    restore();
+    editor.clearSelection();
+  }
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize( window.innerWidth, window.innerHeight );
+  }
+
+  function render() {
+    var canvasData = el('offscreen').getContext('2d').getImageData(0,0,48,8).data;
+    for (var i=0; i<48; i++) {
+      for (var j=0; j<8; j++) {
+        var index = (j*48 + i)*4;
+        buttonColors[j][i].color.setRGB( canvasData[index] / 255, canvasData[index+1] / 255, canvasData[index+2] / 255 );
+      }
+    }
+
+    renderer.render( scene, camera );    
+    requestAnimationFrame(render);
+  }
+
+
+  function initScene() {
+    renderer = new THREE.WebGLRenderer( {alpha: true} );
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.shadowMapEnabled = true;
+    document.body.appendChild( renderer.domElement );
+
+    camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 200 );
+    camera.up = new THREE.Vector3( 0, 0, 1 );
+    setCamera( cameraOffset.x, cameraOffset.y, cameraOffset.z, cameraLookAt.x, cameraLookAt.y, cameraLookAt.z );
+
+    scene = new THREE.Scene();
+
+    scene.fog = new THREE.Fog( 0xffffff, 1, 200 );
+    scene.fog.color.setHSL( 0.6, 0, .2 );
+
+    var light = new THREE.DirectionalLight(0x333333);
+    light.position.set(-10,-30,10);
+    light.rotation.x = light.rotation.y = light.rotation.z = 0;
+    light.target.position.set(0.0,0.0,10.0);
+    light.target.updateMatrixWorld();
+    light.castShadow = true;
+    light.shadowMapWidth = 4096;
+    light.shadowMapHeight = 4096;
+
+    var d = 200;
+    light.shadowCameraLeft = -d;
+    light.shadowCameraRight = d;
+    light.shadowCameraTop = d;
+    light.shadowCameraBottom = -d;
+
+    scene.add(light);
+
+    var hemiLight = new THREE.HemisphereLight( 0x999999, 0x999999, 0.6 );
+    hemiLight.color.setHSL( 0.095, .25, 0.8 );
+    hemiLight.groundColor.setHSL( 0.095, .05, 0.8 );
+    hemiLight.position.set( 0, 500, 0 );
+    scene.add( hemiLight );
+
+
+    // GROUND
+    var groundGeo = new THREE.PlaneGeometry( 10000, 10000 );
+    var groundMat = new THREE.MeshPhongMaterial( { ambient: 0x999999, color: 0x999999, specular: 0x999999 } );
+    groundMat.color.setHSL( 0.095, .0, 0.8 );
+
+    ground = new THREE.Mesh( groundGeo, groundMat );
+    scene.add( ground );
+
+    ground.receiveShadow = true;
+
+    renderer.shadowMapEnabled = true;
+    renderer.shadowMapSoft = true;
+    renderer.shadowMapCullFace = THREE.CullFaceBack;
+
+    addGeometry();
+  }
 
   function addGeometry() {
     var wallMaterial = new THREE.MeshBasicMaterial(  );
@@ -162,12 +656,12 @@
     var text = new THREE.TextGeometry('Causeway Challenge Proposal', textProperties );
     rotateGeometry(text, Math.PI/2, 0, 0);
     translateGeometry(text, -18, -12, 7)
-    addMesh(new THREE.Mesh(text, textMaterial));
+    scene.add(new THREE.Mesh(text, textMaterial));
 
-    text = new THREE.TextGeometry('Public Gaming Wall', textProperties );
+    text = new THREE.TextGeometry('Video Game Wall', textProperties );
     rotateGeometry(text, Math.PI/2, 0, 0);
     translateGeometry(text, -19, -3, 7.5)
-    addMesh(new THREE.Mesh(text, textMaterial));
+    scene.add(new THREE.Mesh(text, textMaterial));
 
     [-20.5, -6, 8.5].forEach(function(xOffset, k){
       for (var i=0; i<16; i++) {
@@ -176,160 +670,16 @@
           buttonColors[j][i + 16*k] = material;
           var buttonRadius = .2;
           ellipseGeometry = new THREE.CylinderGeometry(buttonRadius, buttonRadius, .01,8);
-          translateGeometry(ellipseGeometry, i * .8 + xOffset, +8, j * .8 - 6.5);
+          translateGeometry(ellipseGeometry, i * .8 + xOffset, 8, (7-j) * .8 - 6.5);
           var buttonMesh = new THREE.Mesh(ellipseGeometry, material);
 
           buttonMesh.xIndex = i + 16*k;
           buttonMesh.yIndex = j;
           buttons.push( buttonMesh );
-          addMesh(buttonMesh);
+          scene.add(buttonMesh);
         }
       }
     })
-  }
-
-  function init() {
-    renderer = new THREE.WebGLRenderer( {alpha: true} );
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    renderer.shadowMapEnabled = true;
-    document.body.appendChild( renderer.domElement );
-
-    camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 200 );
-    camera.up = new THREE.Vector3( 0, 0, 1 );
-    setCamera( cameraOffset.x, cameraOffset.y, cameraOffset.z, cameraLookAt.x, cameraLookAt.y, cameraLookAt.z );
-
-    scene = new THREE.Scene();
-
-    scene.fog = new THREE.Fog( 0xffffff, 1, 200 );
-    scene.fog.color.setHSL( 0.6, 0, .2 );
-
-    var light = new THREE.DirectionalLight(0x333333);
-    light.position.set(-10,-30,10);
-    light.rotation.x = light.rotation.y = light.rotation.z = 0;
-    light.target.position.set(0.0,0.0,10.0);
-    light.target.updateMatrixWorld();
-    light.castShadow = true;
-    light.shadowMapWidth = 4096;
-    light.shadowMapHeight = 4096;
-
-    var d = 200;
-    light.shadowCameraLeft = -d;
-    light.shadowCameraRight = d;
-    light.shadowCameraTop = d;
-    light.shadowCameraBottom = -d;
-
-    scene.add(light);
-
-    var hemiLight = new THREE.HemisphereLight( 0x999999, 0x999999, 0.6 );
-    hemiLight.color.setHSL( 0.095, .25, 0.8 );
-    hemiLight.groundColor.setHSL( 0.095, .05, 0.8 );
-    hemiLight.position.set( 0, 500, 0 );
-    scene.add( hemiLight );
-
-
-    // GROUND
-    var groundGeo = new THREE.PlaneGeometry( 10000, 10000 );
-    var groundMat = new THREE.MeshPhongMaterial( { ambient: 0x999999, color: 0x999999, specular: 0x999999 } );
-    groundMat.color.setHSL( 0.095, .0, 0.8 );
-
-    ground = new THREE.Mesh( groundGeo, groundMat );
-    scene.add( ground );
-
-    ground.receiveShadow = true;
-
-    renderer.shadowMapEnabled = true;
-    renderer.shadowMapSoft = true;
-    renderer.shadowMapCullFace = THREE.CullFaceBack;
-
-    editor = ace.edit("editor");
-    editor.setTheme("ace/theme/ambiance");
-    editor.getSession().setMode("ace/mode/java");
-    editor.setShowPrintMargin(false);
-    editor.getSession().setUseSoftTabs(true);
-    editor.setFontSize(16);
-    editor.commands.addCommand({
-        name: 'runScript',
-        bindKey: {win: 'Ctrl-Alt-Enter',  mac: 'Ctrl-Alt-Enter'},
-        exec: startSketch
-    });
-    editor.renderer.setPadding(15);
-    editor.renderer.setScrollMargin(15);
-    setTimeout(function() {
-      editor.focus();
-      editor.clearSelection();
-    }, 500);
-
-    if (localStorage['processing-script'])
-      editor.setValue(localStorage['processing-script']);
-
-    window.addEventListener( 'resize', onWindowResize, false );
-    document.body.addEventListener( 'mousemove', onMouseMove, false );
-    document.body.addEventListener( 'click', onMouseClick, false );
-    document.getElementById('run').onclick = startSketch
-  }
-
-  function startSketch() {
-    var script = editor.getValue();
-
-    localStorage['processing-script'] = script;
-    var oldInstance = Processing.getInstanceById('offscreen');
-    if (oldInstance) oldInstance.noLoop();
-    new Processing(document.getElementById('offscreen'), script);
-    // var f = new Function('ctx', script );
-    // f(document.getElementById('offscreen').getContext('2d'));
-  }
-
-  function onMouseMove( e ) {    
-    var windowWidth = document.body.offsetWidth;
-    var windowHeight = document.body.offsetHeight;
-    var xAngle = .2 * Math.PI * (e.clientX - windowWidth / 2) / windowWidth;
-
-    var x = -cameraOffset.y * Math.sin(xAngle) + cameraOffset.x;
-    var y = cameraOffset.y * Math.cos(xAngle);
-    var z = 5 * ((e.clientY) / document.body.offsetWidth) + cameraOffset.z;
-    setCamera( x, y, z, cameraLookAt.x, cameraLookAt.y, cameraLookAt.z );
-  }
-
-  function onMouseClick( e ) {
-    var windowWidth = document.body.offsetWidth;
-    var windowHeight = document.body.offsetHeight;
-    var mouseVector = new THREE.Vector3();
-    var projector = new THREE.Projector();
-    mouseVector.x = 2 * (e.clientX / windowWidth) - 1;
-    mouseVector.y = 1 - 2 * (e.clientY / windowHeight);
-
-    var raycaster = projector.pickingRay( mouseVector, camera );
-
-    var intersects = raycaster.intersectObjects( buttons );
-    if (intersects.length > 0) {
-      var ctx = document.getElementById('offscreen').getContext('2d');
-      intersects.forEach(function(button) {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(button.object.xIndex, button.object.yIndex, 1, 1);
-      })
-    }
-
-  }
-
-  function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-
-    renderer.setSize( window.innerWidth, window.innerHeight );
-  }
-
-
-  function render() {
-    var canvasData = document.getElementById('offscreen').getContext('2d').getImageData(0,0,48,8).data;
-    for (var i=0; i<48; i++) {
-      for (var j=0; j<8; j++) {
-        var index = (j*48 + i)*4;
-        buttonColors[j][i].color.setRGB( canvasData[index] / 255, canvasData[index+1] / 255, canvasData[index+2] / 255 );
-      }
-    }
-
-    renderer.render( scene, camera );    
-    requestAnimationFrame(render);
   }
 
   function addMesh( mesh, meshName ) {
@@ -386,6 +736,326 @@ function rotateGeometry( g, x, y, z ) {
 function scaleGeometry( g, x, y, z ) {
   matrix = new THREE.Matrix4().makeScale(x,y,z);
   g.applyMatrix(matrix);
+}
+
+////////////////////////////////////////////
+// SCRIPTS
+////////////////////////////////////////////
+
+////////////////////////////////////////////
+// RED LINE
+////////////////////////////////////////////
+function redline() {
+  noStroke();
+  background(0);
+
+  var scheme = 0;
+  var schemes = [
+    function(c,o) { fill(c,o,o); },
+    function(c,o) { fill(c,c,o); },
+    function(c,o) { fill(o,c,c); },
+    function(c,o) { fill(o,c,o); },
+    function(c,o) { fill(o,o,c); },
+    function(c,o) { fill(c,o,c); }
+  ];
+
+  draw = function() {
+    if (random(5) > 1) return;
+    var color = random(128) + 128;
+    var other = random(color);
+    schemes[scheme]( color, other );
+    rect(random(48),0,1,8);
+  }
+
+  mouseClicked = function() {
+      scheme = (scheme + 1) % schemes.length;      
+  }
+}
+
+////////////////////////////////////////////
+// WHACK-A-MOLE
+////////////////////////////////////////////
+function whack() {
+  var state = 0, timer = 0, moles = [], timeRemaining, score, font;
+  var state = 0, timer = 0, moles = [], timeRemaining, score, font;
+  var INIT=0, WAITING_FOR_PRESS=1, PLAYING=2, SCORING=3;
+  var SQUASH_TIME = 20;
+  var GAME_TIME = 1500;
+  var SCORE_TIME = 500;
+
+  setup = function() {
+    font = loadFont('verdana');
+    textFont(font,7);
+    noStroke();
+  }
+
+  draw = function() {
+    switch (state) {
+      case INIT:
+        background(0);
+        fill(255);
+        text('press to play', 1.5, 6);
+        state = WAITING_FOR_PRESS;
+        break;
+      case PLAYING:
+        background(0);
+        fill(0,0,255);
+        eachSpace(function(i,j,mole) {
+          if (mole && mole.t == 'squashed') {
+            if (mole.x > 0) {
+              fill(255*mole.x/SQUASH_TIME,0,0);
+              var radius = 10 * (SQUASH_TIME-mole.x)/SQUASH_TIME;
+              ellipse(i,j+2,radius,radius);
+              mole.x--;
+            } else {
+              moles[i][j] = null;
+              addMole();
+            }
+          }
+        });
+        eachSpace(function(i,j,mole) {
+          if (mole && mole.t == 'live') {
+            if (mole.v > 1) { fill(255,255,0); } else { fill(0,0,255); }
+            rect(i,j+2,1,1);
+          }
+        });
+
+        fill(255,80,80);            
+        rect(0,0,48,1);
+        fill(80,255,80);
+        rect(0,0,48*timeRemaining/GAME_TIME,1);
+        timeRemaining--;
+        if (timeRemaining <= 0) {
+          state = SCORING;
+          timeRemaining = SCORE_TIME;
+        }
+        break;
+      case SCORING:
+        background(0);
+        fill(255);
+        textFont(font,10);
+        text('score:'+score, 1.5, 8);
+        timeRemaining--;
+        if (timeRemaining < 0)
+          state = INIT;
+    } 
+  }
+
+  mouseClicked = function() {
+    switch (state) {
+      case WAITING_FOR_PRESS:
+        initGame();
+        timeRemaining = GAME_TIME;
+        score = 0;
+        state = PLAYING;
+        break;
+      case PLAYING:
+        var mole = moles[mouseX][mouseY-2];
+        if (mole) {
+          mole.t = 'squashed';
+          mole.x = SQUASH_TIME;
+          score += mole.v;
+        }
+        break;
+    } 
+  }
+
+  function eachSpace(f) {
+    for (var i=0; i<48; i++) for (var j=0; j<6; j++) f(i,j,moles[i][j]);
+  }
+
+  function randomPoint() {
+    return [int(random(48)),int(random(6))];
+  }
+
+  function addMole() {
+    for (var point=randomPoint(); moles[point[0]][point[1]]; point=randomPoint());
+    moles[point[0]][point[1]] = {t:'live', v:int(random(15)) > 0 ? 1 : 5};
+  }
+
+  function initGame() {
+    moles = [];
+    for (var i=0; i<48; i++) {
+      moles[i] = [];
+      for (var j=0; j<6; j++) moles[i][j] = null;
+    }
+
+    for (var i=0; i<35; i++)
+      addMole();
+  }
+}
+
+////////////////////////////////////////////
+// TENIS
+////////////////////////////////////////////
+function tenis() {
+  var SERVE_STATE=0, PLAYING_STATE=1, SCORING_STATE=2;
+  var GRAVITY = .0005, MAX_SCORE=5, SCORING_TIME=500;
+  var state=SERVE_STATE, serveLeft=true, hitLeft=true; leftScore=0, rightScore=0;
+  var arrowPhase = 0, position = {x:3.5,y:5.5}, velocity = {x:0,y:0};
+  var timeRemaining=0;
+
+  draw = function() {
+    background(0);
+    fill(100,100,255);
+    noStroke();
+    rect(0,0,leftScore,1);
+    rect(48-rightScore,0,rightScore,1);
+
+    switch (state) {
+      case SERVE_STATE:
+        noStroke();
+        fill(225,255,0);
+        ellipse(position.x,position.y,2,2);
+        
+        stroke(0,200,100);
+        var offset = (serveLeft?-1:1) * (arrowPhase%40)/5 - (serveLeft?0:16);
+        for (var i=0; i<40; i+=4) {
+          line(14 + i + offset,5.25, (serveLeft?16:12) + i + offset, 7.25);
+          line(14 + i + offset,6.25, (serveLeft?16:12) + i + offset, 4.25);
+        }
+        
+        arrowPhase++;
+        break;
+        
+      case PLAYING_STATE:
+        position.x += velocity.x;
+        position.y += velocity.y;
+        velocity.y += GRAVITY;
+        noStroke();
+        fill(225,255,0);
+        ellipse(position.x,position.y,2,2);
+        if (position.y>8) {
+          if (hitLeft)
+            rightScore++;
+          else
+            leftScore++;
+          
+          if (rightScore >= MAX_SCORE || leftScore >= MAX_SCORE) {
+            state = SCORING_STATE;
+            timeRemaining = SCORING_TIME;
+          } else {
+            state=SERVE_STATE;
+            hitLeft = serveLeft = !serveLeft;
+            position = serveLeft ? {x:3.5,y:5.5} : {x:44.5,y:5.5};
+          }
+        }
+        
+        break;
+      case SCORING_STATE:
+        fill(255);
+        var font = loadFont('verdana');
+        textFont(font,10);
+        text(leftScore, 1.5, 8);
+        text(rightScore, 46.5 - textWidth(rightScore.toString()),8);
+        timeRemaining--;
+        if (timeRemaining < 0) {
+          state=SERVE_STATE, serveLeft=true, hitLeft=true; leftScore=0, rightScore=0;
+          arrowPhase = 0, position = {x:3.5,y:5.5}, velocity = {x:0,y:0};
+        }
+        
+    }
+  }
+
+  mouseClicked = function() {
+    switch (state) {
+      case SERVE_STATE:
+        if (ballHit(mouseX,mouseY)) {
+          hit();
+          state = PLAYING_STATE;
+        }
+        break;
+      case PLAYING_STATE:
+        if (ballHit(mouseX,mouseY))
+          hit();
+        break;
+    }
+  }
+
+  function ballHit(x,y) {
+    var dx = x - position.x, dy = y - position.y;
+    return Math.sqrt(dx*dx + dy*dy) < 4;
+  }
+
+  function hit() {
+    velocity = {x:random(.1,.2) * (hitLeft?1:-1)}
+    var targetX = hitLeft ? random(42,48) : random(0,6);
+    var time = (targetX - position.x) / velocity.x;
+    velocity.y = (8-position.y) / time - GRAVITY*time / 2;
+    hitLeft = !hitLeft;
+  } 
+}
+
+////////////////////////////////////////////
+// SPRINT
+////////////////////////////////////////////
+function sprint() {
+  var state = 0, timer = 0, timeRemaining, score, font;
+  var INIT=0, WAITING_FOR_PRESS=1, PLAYING=2, SCORING=3;
+  var INITIAL_START_TIME = 1000;
+  var TIME_DECREMENT = 10;
+  var SCORE_TIME = 500;
+  var timePerBlock = INITIAL_START_TIME, blockX;
+
+  setup = function() {
+    font = loadFont('verdana');
+    textFont(font,7);
+    noStroke();
+  }
+
+  draw = function(){
+    switch (state) {
+      case INIT:
+        background(0);
+        fill(255);
+        text('press to play', 1.5, 6);
+        state = WAITING_FOR_PRESS;
+        break;
+      case PLAYING:
+        background(0);
+        fill(255,0,0);
+        rect(blockX,0,1,8);
+        fill(0,100,255);
+        rect(blockX,8*(1-timeRemaining/timePerBlock),1,8);
+        timeRemaining--;
+        if (timeRemaining <= 0) {
+          state = SCORING;
+          timeRemaining = SCORE_TIME;
+        }
+        break;
+      case SCORING:
+        background(0);
+        fill(255);
+        textFont(font,10);
+        text('score:'+score, 1.5, 8);
+        timeRemaining--;
+        if (timeRemaining < 0)
+          state = INIT;
+    } 
+  }
+
+  mouseClicked = function() {
+    switch (state) {
+      case WAITING_FOR_PRESS:
+        timePerBlock = INITIAL_START_TIME;
+        score = 0;
+        startBlock();
+        state = PLAYING;
+        break;
+      case PLAYING:
+        if (mouseX == blockX) {
+          score++;
+          startBlock();
+        }
+        break;
+    } 
+  }
+
+  function startBlock() {
+    blockX = int(random(48));
+    timeRemaining = timePerBlock;
+    timePerBlock = max(10,timePerBlock - TIME_DECREMENT);
+  } 
 }
 
     </script>
