@@ -148,8 +148,16 @@
         bottom: 0;
         right: 0;
         left: 0;
-        z-index: 1;
+        pointer-events: none;
         background: linear-gradient( 0deg, rgba(100,96,94,1), rgba(100,96,94,1) 10%, rgba(100,96,94,0) 50%, rgba(100,96,94,1) 90%, rgba(100,96,94,1) );
+      }
+      #script-scroll {
+        position: relative;
+        top: 28px;
+      }
+      #script-scroll.auto {
+        transition: transform .3s ease;
+        transform: translate(0,0);
       }
 
       #scripts ul, #scripts li {
@@ -157,10 +165,15 @@
         margin: 0;
         padding: 0;
         text-align: center;
-        color: #000;
+        color: #999;
+        transition: color .5s linear;
+        text-transform: uppercase;
       }
       #scripts li.active {
-        color: #ccc;
+        color: #fff;
+      }
+      #scripts li:hover {
+        color: #fff;
       }
     </style>
     <script src="http://ajax.googleapis.com/ajax/libs/threejs/r67/three.min.js"></script>
@@ -168,15 +181,10 @@
     <script src="http://cdnjs.cloudflare.com/ajax/libs/processing.js/1.4.8/processing.min.js"></script>
     <script src="droid_sans_regular.typeface.js"></script>
   </head>
-  <body>
+  <body class="view">
     <canvas id="offscreen" height="8" width="48"></canvas>
-    <div id="scripts"><div class="inset"></div><ul id="script-scroll">
-      <li>WHACK-A-MOLE</li>
-      <li class="active">RED LINE</li>
-      <li>TENNIS</li>
-      <li>FLOCKING</li>
-      <li>SPRINTS</li>
-    </ul></div>
+    <div id="scripts"><ul id="script-scroll" class="auto">
+    </ul><div class="inset"></div></div>
     <div id="edit-script">
       <button id="edit">edit</button>
       <input id="name" placeholder="title"/>
@@ -193,40 +201,53 @@
   var renderer, camera, ground, scene, editor;
   var buttonColors = [[],[],[],[],[],[],[],[],[]];
   var buttons = [];
-  var scripts = {};
+  var scripts = {
+'red line' : {name:'red line', author:'alex', script:'noStroke();\n\
+  background(0);\n\
+\n\
+  void draw() {\n\
+    var red = random(128) + 128;\n\
+    var other = random(red);\n\
+    fill(red, other, other);\n\
+    rect(random(48),0,1,8);\n\
+  }'},
+
+'green line' : {name:'green line', author:'ada', script:'noStroke();\n\
+  background(0);\n\
+\n\
+  void draw() {\n\
+    var green = random(128) + 128;\n\
+    var other = random(red);\n\
+    fill(other, green, other);\n\
+    rect(random(48),0,1,8);\n\
+  }'},
+
+'blue line' : {name:'blue line', author:'oona', script:'noStroke();\n\
+  background(0);\n\
+\n\
+  void draw() {\n\
+    var blue = random(128) + 128;\n\
+    var other = random(blue);\n\
+    fill(other, other, blue);\n\
+    rect(random(48),0,1,8);\n\
+  }'}
+  };
+  var scriptScrollPosition=0, scriptScrollSpeed=0, scriptScrollFrame;
 
   var cameraOffset = {x:0, y:-50, z:-2.5};
   var cameraLookAt = {x:0, y:0, z:-5};
   var outline = .08;
+  var bannerInterval;
 
   init();
+
+  function el(elId) {  return document.getElementById(elId);  }
 
   function init() {
     initScene();
     requestAnimationFrame(render);
 
-    setTimeout(function() {
-      editor = ace.edit("editor");
-      editor.setTheme("ace/theme/ambiance");
-      editor.getSession().setMode("ace/mode/java");
-      editor.setShowPrintMargin(false);
-      editor.getSession().setUseSoftTabs(true);
-      editor.setFontSize(16);
-      editor.commands.addCommand({
-          name: 'runScript',
-          bindKey: {win: 'Ctrl-Alt-Enter',  mac: 'Ctrl-Alt-Enter'},
-          exec: startSketch
-      });
-      editor.renderer.setPadding(15);
-      editor.renderer.setScrollMargin(15);
-      restore();
-      editor.clearSelection();
-      if (editor.getValue())
-        startSketch();
-
-      document.body.setAttribute('class','view');
-    }, 500);
-
+    setTimeout(initEditor, 500)
     setInterval(autosave, 3000);
 
     window.addEventListener( 'resize', onWindowResize, false );
@@ -237,12 +258,92 @@
     el('new').onclick = resetEdit;
     el('save').onclick = save;
     el('delete').onclick = deleteScript;
+    el('export').onclick = exportScript;
     el('name').onkeyup = setSaveState;
     el('author').onkeyup = setSaveState;
+    el('scripts').onmouseenter = startScriptScroller;
+    el('scripts').onmouseleave = stopScriptScroller;
+
+    setTimeout(function() {
+      for (var scriptName in scripts) {
+        var element = document.createElement('li');
+        element.innerHTML = scriptName;
+        element.onclick = scriptSelected
+        el('script-scroll').appendChild(element);
+      }
+      el('script-scroll').querySelector('li').setAttribute('class','active');
+      el('script-scroll').style.top = '28px';
+
+      startScript(scripts[el('script-scroll').querySelector('li').innerHTML])
+    }, 750);
+  }
+
+  function startScriptScroller(e) {
+    function setScrollSpeed(e) {
+      var normalized = -2 * (e.clientY - el('scripts').offsetTop - el('scripts').offsetHeight/2) / el('scripts').offsetHeight
+      scriptsScrollSpeed = 2*normalized;
+
+    }
+    el('script-scroll').setAttribute('class','');
+    el('scripts').onmousemove = setScrollSpeed;
+    setScrollSpeed(e);
+    scriptScrollPosition = 0;
+    scriptScrollFrame = requestAnimationFrame(scrollScroller);
+  }
+
+  function scrollScroller() {
+    scriptScrollPosition += scriptsScrollSpeed;
+
+    if ( scriptScrollPosition > -parseInt(el('script-scroll').style.top) + 28 ) {
+      scriptScrollPosition = -parseInt(el('script-scroll').style.top) + 28;
+      scriptsScrollSpeed = 0;
+    }
+
+    if ( scriptScrollPosition < -parseInt(el('script-scroll').style.top) - el('script-scroll').offsetHeight + 56 ) {
+      scriptScrollPosition = -parseInt(el('script-scroll').style.top) - el('script-scroll').offsetHeight + 56;
+      scriptsScrollSpeed = 0;
+    }    
+
+    el('script-scroll').style.transform = 'translate(0, '+scriptScrollPosition+'px)';
+    scriptScrollFrame = requestAnimationFrame(scrollScroller);
+  }
+
+  function scriptSelected(e) {
+    selectScript(e.target.innerHTML);
+  }
+
+  function selectScript(name) {
+    var index = 0;
+    for (var i=0, lis=el('script-scroll').querySelectorAll('li'), l=lis.length; i<l; i++) {
+      if (lis[i].innerHTML === name) {
+        index = i;
+        lis[i].setAttribute('class','active');
+      } else {
+        lis[i].setAttribute('class','');        
+      }
+    }
+    el('script-scroll').style.top = (28 * (1-index)) + 'px';
+    scriptScrollPosition = 0;
+    el('script-scroll').style.transform = 'translate(0, '+scriptScrollPosition+'px)';
+    scriptsScrollSpeed = 0;
+
+    editScript(scripts[name])
+    startScript(scripts[name]);
+  }
+
+  function scriptNames() {
+    var names = [];
+    for (var name in scripts) names.push(name);
+    return names;
+  }
+
+  function stopScriptScroller() {
+    el('scripts').onmousemove = null;
+    el('script-scroll').setAttribute('class','auto');
+    el('script-scroll').style.transform = null;
+    cancelAnimationFrame(scriptScrollFrame);
   }
   
-  function el(elId) {  return document.getElementById(elId);  }
-
   function setSaveState() {
     var name = el('name').value;
     if ( name ) {
@@ -261,6 +362,20 @@
     stopSketch();
   }
 
+  function exportScript() {
+    var name = el('name').value.toUpperCase();
+    var scriptString = JSON.stringify({
+      name: name,
+      author: el('author').value.toUpperCase(),
+      script:editor.getValue()
+    })
+
+    var link = document.createElement('a');
+    link.download = name + '.json';
+    link.href = 'data:,' + scriptString;
+    link.click();
+  }
+
   function toggleEdit() {
     if (document.body.getAttribute('class') == 'edit') {
       el('edit').innerHTML = 'edit';
@@ -275,7 +390,7 @@
     autosave();
     var name = el('name').value;
     if (name) {
-      scripts[name] = localStorage.$draft;
+      scripts[name] = JSON.parse(localStorage.$draft);
       localStorage.$scripts = JSON.stringify(scripts);
     }
     setSaveState();
@@ -303,21 +418,31 @@
     var draftJSON = localStorage.$draft;
     if (draftJSON) {
       var script = JSON.parse(draftJSON);
-      el('name').value = script.name || '';
-      el('author').value = script.author || '';
-      editor.setValue( script.script );
+      editScript(script);
     }
 
     var scriptsJSON = localStorage.$scripts;
-    if (scriptsJSON)
-      scripts = JSON.parse(scriptsJSON);
+    if (scriptsJSON) {
+      savedScripts = JSON.parse(scriptsJSON);
+      for (var scriptName in savedScripts)
+        scripts[scriptName] = savedScripts[scriptName];
+    }
     setSaveState();
+  }
+
+  function editScript(script) {
+    el('name').value = script.name || '';
+    el('author').value = script.author || '';
+    editor.setValue( script.script );
+    editor.clearSelection();
   }
 
   function banner(txt, next) {
     var processing = Processing.getInstanceById('offscreen');
-    if (! processing)
-      processing = new Processing(el('offscreen'));
+    if (processing)
+      processing.noLoop();
+    clearInterval(bannerInterval);
+    processing = new Processing(el('offscreen'));
 
     var font = processing.loadFont('verdana');
     processing.textFont(font,10);
@@ -325,13 +450,13 @@
     var width = processing.textWidth(txt);
     var x = 52;
 
-    var interval = setInterval(function() {
+    bannerInterval = setInterval(function() {
       processing.background(0);
       processing.fill(255);
       processing.text(txt, x, 8);
       x -= 1;
       if (x + width + 8 < 0) {
-        clearInterval(interval);
+        clearInterval(bannerInterval);
         next();
       }
     },50);
@@ -341,22 +466,27 @@
     var oldInstance = Processing.getInstanceById('offscreen');
     if (oldInstance) oldInstance.noLoop();
     el('offscreen').getContext('2d').clearRect(0,0,48,8);
+  }  
+
+  function startSketch( ) {
+    startScript( { 
+      name:el('name').value, 
+      author:el('author').value,
+      script:editor.getValue()
+    } );
   }
 
-  function startSketch() {
-    var script = editor.getValue();
-
-    localStorage['processing-script'] = script;
+  function startScript( script ) {
     stopSketch();
-    if ( el('name').value ) {
-      var txt = el('name').value.toUpperCase();
-      if (el('author').value)
-        txt += ' BY ' + el('author').value.toUpperCase()
+    if ( script.name ) {
+      var txt = script.name.toUpperCase();
+      if (script.author)
+        txt += ' BY ' + script.author.toUpperCase()
       banner(txt, function() {
-        new Processing(el('offscreen'), script);
+        new Processing(el('offscreen'), script.script);
       });
     } else {
-      new Processing(el('offscreen'), script);
+      new Processing(el('offscreen'), script.script);
     }
   }
 
@@ -393,7 +523,24 @@
         processing.mouseClicked();
       })
     }
+  }
 
+  function initEditor() {
+    editor = ace.edit("editor");
+    editor.setTheme("ace/theme/ambiance");
+    editor.getSession().setMode("ace/mode/java");
+    editor.setShowPrintMargin(false);
+    editor.getSession().setUseSoftTabs(true);
+    editor.setFontSize(16);
+    editor.commands.addCommand({
+        name: 'runScript',
+        bindKey: {win: 'Ctrl-Alt-Enter',  mac: 'Ctrl-Alt-Enter'},
+        exec: startSketch
+    });
+    editor.renderer.setPadding(15);
+    editor.renderer.setScrollMargin(15);
+    restore();
+    editor.clearSelection();
   }
 
   function onWindowResize() {
@@ -415,6 +562,7 @@
     renderer.render( scene, camera );    
     requestAnimationFrame(render);
   }
+
 
   function initScene() {
     renderer = new THREE.WebGLRenderer( {alpha: true} );
