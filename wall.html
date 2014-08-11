@@ -204,7 +204,7 @@
   var scripts = {
     'red line' : {name:'red line', author:'alex', script:redline.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
     'whack-a-mole' : {name:'whack-a-mole', author:'cruikshank', script:whack.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
-    'tenis' : {name:'tenis', author:'ada', script:tenis.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
+    'tennis' : {name:'tennis', author:'ada', script:tennis.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
     'sprint' : {name:'sprint', author:'oona', script:sprint.toString().replace(/(^.*?\n)|(\}\s*$)/g,'')},
   };
   var scriptScrollPosition=0, scriptScrollSpeed=0, scriptScrollFrame;
@@ -886,9 +886,9 @@ function whack() {
 }
 
 ////////////////////////////////////////////
-// TENIS
+// TENNIS
 ////////////////////////////////////////////
-function tenis() {
+function tennis() {
   var SERVE_STATE=0, PLAYING_STATE=1, SCORING_STATE=2;
   var GRAVITY = .0005, MAX_SCORE=5, SCORING_TIME=500;
   var state=SERVE_STATE, serveLeft=true, hitLeft=true; leftScore=0, rightScore=0;
